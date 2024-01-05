@@ -143,7 +143,7 @@ func readAlterRole(db QueryAble, d *schema.ResourceData) error {
 	d.Set("role_name", roleName)
 	d.SetId(generateAlterRoleID(d))
 
-	parameters_string := strings.TrimPrefix(strings.TrimSuffix(string(roleParameters), '}'), '{')
+	parameters_string := strings.TrimPrefix(strings.TrimSuffix(string(roleParameters), "}"), "{")
 	parameters = strings.Split(parameters_string, ",")
 	for _, parameter := range parameters {
 		parameterKey := strings.Split(parameter, "=")[0]
