@@ -128,12 +128,7 @@ func readAlterRole(db QueryAble, d *schema.ResourceData) error {
 	alterRoleID := d.Id()
 	alterParameterKey := d.Get("parameter_key")
 
-	values := []interface{}{
-		&roleName,
-		&roleParameters,
-	}
-
-	err := db.QueryRow(getAlterRoleQuery, d.Get("role_name")).Scan(values...)
+	err := db.QueryRow(getAlterRoleQuery, d.Get("role_name")).Scan(&roleName, &roleParameters)
 	switch {
 	case err == sql.ErrNoRows:
 		log.Printf("[WARN] PostgreSQL alter role (%q) not found", alterRoleID)
@@ -148,8 +143,9 @@ func readAlterRole(db QueryAble, d *schema.ResourceData) error {
 	d.Set("role_name", roleName)
 	d.SetId(generateAlterRoleID(d))
 
-	for _, v := range roleParameters {
-		parameter := string(v)
+	parameters_string := strings.TrimPrefix(strings.TrimSuffix(string(roleParameters), '}'), '{')
+	parameters = strings.Split(parameters_string, ",")
+	for _, parameter := range parameters {
 		parameterKey := strings.Split(parameter, "=")[0]
 		parameterValue := strings.Split(parameter, "=")[1]
 		if parameterKey == alterParameterKey {
@@ -157,7 +153,6 @@ func readAlterRole(db QueryAble, d *schema.ResourceData) error {
 			d.Set("parameter_value", parameterValue)
 		}
 	}
-
 	return nil
 }
 
