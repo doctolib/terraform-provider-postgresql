@@ -122,7 +122,7 @@ func resourcePostgreSQLAlterRoleDelete(db *DBConnection, d *schema.ResourceData)
 func readAlterRole(db QueryAble, d *schema.ResourceData) error {
 	var (
 		roleName       string
-		roleParameters pq.ByteaArray
+		roleParameters string
 	)
 
 	alterRoleID := d.Id()
@@ -144,7 +144,7 @@ func readAlterRole(db QueryAble, d *schema.ResourceData) error {
 	d.SetId(generateAlterRoleID(d))
 
 	parameters_string := strings.TrimPrefix(strings.TrimSuffix(string(roleParameters), "}"), "{")
-	parameters = strings.Split(parameters_string, ",")
+	parameters := strings.Split(parameters_string, ",")
 	for _, parameter := range parameters {
 		parameterKey := strings.Split(parameter, "=")[0]
 		parameterValue := strings.Split(parameter, "=")[1]
