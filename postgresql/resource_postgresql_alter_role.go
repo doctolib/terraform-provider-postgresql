@@ -148,8 +148,8 @@ func readAlterRole(db QueryAble, d *schema.ResourceData) error {
 	for _, parameter := range parameters {
 		parameterKey := strings.Split(parameter, "=")[0]
 		parameterValue := strings.Split(parameter, "=")[1]
-		if parameterKey == alterParameterKey {
-			d.Set("parameter_key", parameterKey)
+		if strings.ToLower(parameterKey) == alterParameterKey {
+			d.Set("parameter_key", strings.ToLower(parameterKey))
 			d.Set("parameter_value", parameterValue)
 		}
 	}
@@ -201,5 +201,5 @@ func resetAlterRole(txn *sql.Tx, d *schema.ResourceData) error {
 }
 
 func generateAlterRoleID(d *schema.ResourceData) string {
-	return strings.Join([]string{d.Get("role_name").(string), d.Get("parameter_key").(string), d.Get("parameter_value").(string)}, "_")
+	return strings.Join([]string{d.Get("role_name").(string), d.Get("parameter_key").(string)}, "_")
 }
