@@ -136,7 +136,14 @@ func resourcePostgreSQLSchemaCreate(db *DBConnection, d *schema.ResourceData) er
 	}
 	rolesToGrant = append(rolesToGrant, dbOwner)
 
-	schemaOwner := d.Get("owner").(string)
+	owners := []string{}
+	owners = append(owners, d.Get("owner").(string))
+	owners, err = resolveOwners(txn, owners)
+	if err != nil {
+		return err
+	}
+	schemaOwner := owners[0]
+
 	if schemaOwner != "" && schemaOwner != dbOwner {
 		rolesToGrant = append(rolesToGrant, schemaOwner)
 
