@@ -122,18 +122,13 @@ func resourcePostgreSQLAlterRoleDelete(db *DBConnection, d *schema.ResourceData)
 func readAlterRole(db QueryAble, d *schema.ResourceData) error {
 	var (
 		roleName       string
-		roleParameters pq.ByteaArray
+		roleParameters string
 	)
 
 	alterRoleID := d.Id()
 	alterParameterKey := d.Get("parameter_key")
 
-	values := []interface{}{
-		&roleName,
-		&roleParameters,
-	}
-
-	err := db.QueryRow(getAlterRoleQuery, d.Get("role_name")).Scan(values...)
+	err := db.QueryRow(getAlterRoleQuery, d.Get("role_name")).Scan(&roleName, &roleParameters)
 	switch {
 	case err == sql.ErrNoRows:
 		log.Printf("[WARN] PostgreSQL alter role (%q) not found", alterRoleID)
@@ -148,16 +143,16 @@ func readAlterRole(db QueryAble, d *schema.ResourceData) error {
 	d.Set("role_name", roleName)
 	d.SetId(generateAlterRoleID(d))
 
-	for _, v := range roleParameters {
-		parameter := string(v)
+	parameters_string := strings.TrimPrefix(strings.TrimSuffix(string(roleParameters), "}"), "{")
+	parameters := strings.Split(parameters_string, ",")
+	for _, parameter := range parameters {
 		parameterKey := strings.Split(parameter, "=")[0]
 		parameterValue := strings.Split(parameter, "=")[1]
-		if parameterKey == alterParameterKey {
-			d.Set("parameter_key", parameterKey)
+		if strings.ToLower(parameterKey) == alterParameterKey {
+			d.Set("parameter_key", strings.ToLower(parameterKey))
 			d.Set("parameter_value", parameterValue)
 		}
 	}
-
 	return nil
 }
 
@@ -206,5 +201,5 @@ func resetAlterRole(txn *sql.Tx, d *schema.ResourceData) error {
 }
 
 func generateAlterRoleID(d *schema.ResourceData) string {
-	return strings.Join([]string{d.Get("role_name").(string), d.Get("parameter_key").(string), d.Get("parameter_value").(string)}, "_")
+	return strings.Join([]string{d.Get("role_name").(string), d.Get("parameter_key").(string)}, "_")
 }
