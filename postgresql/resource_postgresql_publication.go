@@ -158,7 +158,7 @@ func setPubOwner(txn *sql.Tx, d *schema.ResourceData) error {
 	n := nraw.(string)
 	pubName := d.Get(pubNameAttr).(string)
 
-	sql := fmt.Sprintf("ALTER PUBLICATION %s OWNER TO %s", pubName, n)
+	sql := fmt.Sprintf("ALTER PUBLICATION %s OWNER TO \"%s\"", pubName, n)
 	if _, err := txn.Exec(sql); err != nil {
 		return fmt.Errorf("Error updating publication owner: %w", err)
 	}
