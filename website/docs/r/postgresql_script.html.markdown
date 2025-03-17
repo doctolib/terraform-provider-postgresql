@@ -3,7 +3,7 @@ layout: "postgresql"
 page_title: "PostgreSQL: postgresql_script"
 sidebar_current: "docs-postgresql-resource-postgresql_script"
 description: |-
-  Execute a SQL scipt
+  Execute a SQL script
 ---
 
 # postgresql\_script
