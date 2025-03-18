@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	scriptCommandsAttr = "commands"
-	scriptTriesAttr    = "tries"
-	scriptTimeoutAttr  = "timeout"
-	scriptShasumAttr   = "shasum"
+	scriptCommandsAttr     = "commands"
+	scriptTriesAttr        = "tries"
+	scriptBackoffDelayAttr = "backoffDelay"
+	scriptShasumAttr       = "shasum"
 )
 
 func resourcePostgreSQLScript() *schema.Resource {
@@ -38,7 +38,7 @@ func resourcePostgreSQLScript() *schema.Resource {
 				Default:     1,
 				Description: "Number of tries for a failing command",
 			},
-			scriptTimeoutAttr: {
+			scriptBackoffDelayAttr: {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Default:     1,
@@ -56,11 +56,11 @@ func resourcePostgreSQLScript() *schema.Resource {
 func resourcePostgreSQLScriptCreateOrUpdate(db *DBConnection, d *schema.ResourceData) error {
 	commands := d.Get(scriptCommandsAttr).([]any)
 	tries := d.Get(scriptTriesAttr).(int)
-	timeout := d.Get(scriptTimeoutAttr).(int)
+	backoffDelay := d.Get(scriptBackoffDelayAttr).(int)
 
 	sum := shasumCommands(commands)
 
-	if err := executeCommands(db, commands, tries, timeout); err != nil {
+	if err := executeCommands(db, commands, tries, backoffDelay); err != nil {
 		return err
 	}
 
@@ -81,7 +81,7 @@ func resourcePostgreSQLScriptDelete(db *DBConnection, d *schema.ResourceData) er
 	return nil
 }
 
-func executeCommands(db *DBConnection, commands []any, tries int, timeout int) error {
+func executeCommands(db *DBConnection, commands []any, tries int, backoffDelay int) error {
 	for i := 1; ; i++ {
 		var err error
 		for _, command := range commands {
@@ -90,13 +90,13 @@ func executeCommands(db *DBConnection, commands []any, tries int, timeout int) e
 
 			if err != nil {
 				log.Println("[DEBUG] Error catched:", err)
-				if _, err := db.Query("ROLLBACK"); err != nil {
-					log.Println("[DEBUG] Rollback raised an error:", err)
+				if _, rollbackError := db.Query("ROLLBACK"); rollbackError != nil {
+					log.Println("[DEBUG] Rollback raised an error:", rollbackError)
 				}
 				if i >= tries {
 					return err
 				}
-				time.Sleep(time.Duration(timeout) * time.Second)
+				time.Sleep(time.Duration(backoffDelay) * time.Second)
 				break
 			}
 		}
