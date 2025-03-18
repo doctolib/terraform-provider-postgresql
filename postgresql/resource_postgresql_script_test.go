@@ -155,3 +155,28 @@ func TestAccPostgresqlScript_fail(t *testing.T) {
 		},
 	})
 }
+
+func TestAccPostgresqlScript_failMultiple(t *testing.T) {
+	config := `
+	resource "postgresql_script" "invalid" {
+		commands = [
+			"BEGIN",
+			"SLC FROM nowhere;",
+			"COMMIT"
+		]
+		tries = 2
+		timeout = 2
+	}
+	`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testAccPreCheck(t) },
+		Providers: testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:      config,
+				ExpectError: regexp.MustCompile("syntax error"),
+			},
+		},
+	})
+}
