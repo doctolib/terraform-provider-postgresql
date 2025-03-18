@@ -3,6 +3,7 @@ package postgresql
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"log"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -81,20 +82,28 @@ func resourcePostgreSQLScriptDelete(db *DBConnection, d *schema.ResourceData) er
 }
 
 func executeCommands(db *DBConnection, commands []any, tries int, timeout int) error {
-	for _, command := range commands {
-		for i := 1; ; i++ {
-			_, err := db.Query(command.(string))
+	for i := 1; ; i++ {
+		var err error
+		for _, command := range commands {
+			log.Printf("[DEBUG] Executing (%d try) %s", i, command.(string))
+			_, err = db.Query(command.(string))
+
 			if err != nil {
+				log.Println("[DEBUG] Error catched:", err)
+				if _, err := db.Query("ROLLBACK"); err != nil {
+					log.Println("[DEBUG] Rollback raised an error:", err)
+				}
 				if i >= tries {
 					return err
 				}
 				time.Sleep(time.Duration(timeout) * time.Second)
-				continue
+				break
 			}
-			break
+		}
+		if err == nil {
+			return nil
 		}
 	}
-	return nil
 }
 
 func shasumCommands(commands []any) string {
