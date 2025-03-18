@@ -10,6 +10,8 @@ description: |-
 
 The ``postgresql_script`` execute a script given as parameter. This script will be executed each time it changes.
 
+If one command of the batch fails, the provider will send a `ROLLBACK` command to the database, and retry, according to the tries / backoff_delay configuration.
+
 ## Usage
 
 ```hcl
@@ -19,7 +21,7 @@ resource "postgresql_script" "foo" {
     "command 2"
   ]
   tries = 1
-  timeout = 1
+  backoff_delay = 1
 }
 ```
 
@@ -27,7 +29,7 @@ resource "postgresql_script" "foo" {
 
 * `commands` - (Required) An array of commands to execute, one by one.
 * `tries` - (Optional) Number of tries of a command before raising an error.
-* `timeout` - (Optional) Time in second between two failing commands.
+* `backoff_delay` - (Optional) In case of failure, time in second to wait before a retry.
 
 ## Examples
 
@@ -41,6 +43,6 @@ resource "postgresql_script" "foo" {
     "COMMIT"
   ]
   tries = 3
-  timeout = 1
+  backoff_delay = 1
 }
 ```
