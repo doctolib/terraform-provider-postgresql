@@ -12,7 +12,7 @@ import (
 const (
 	scriptCommandsAttr     = "commands"
 	scriptTriesAttr        = "tries"
-	scriptBackoffDelayAttr = "backoffDelay"
+	scriptBackoffDelayAttr = "backoff_delay"
 	scriptShasumAttr       = "shasum"
 )
 
