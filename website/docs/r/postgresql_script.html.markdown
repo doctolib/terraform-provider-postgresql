@@ -8,7 +8,7 @@ description: |-
 
 # postgresql\_script
 
-The ``postgresql_script`` execute a script given as parameter.
+The ``postgresql_script`` execute a script given as parameter. This script will be executed each time it changes.
 
 ## Usage
 
