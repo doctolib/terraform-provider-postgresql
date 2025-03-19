@@ -82,28 +82,33 @@ func resourcePostgreSQLScriptDelete(db *DBConnection, d *schema.ResourceData) er
 }
 
 func executeCommands(db *DBConnection, commands []any, tries int, backoffDelay int) error {
-	for i := 1; ; i++ {
-		var err error
-		for _, command := range commands {
-			log.Printf("[DEBUG] Executing (%d try) %s", i, command.(string))
-			_, err = db.Query(command.(string))
-
-			if err != nil {
-				log.Println("[DEBUG] Error catched:", err)
-				if _, rollbackError := db.Query("ROLLBACK"); rollbackError != nil {
-					log.Println("[DEBUG] Rollback raised an error:", rollbackError)
-				}
-				if i >= tries {
-					return err
-				}
-				time.Sleep(time.Duration(backoffDelay) * time.Second)
-				break
-			}
-		}
+	for try := 1; ; try++ {
+		err := executeBatch(db, commands)
 		if err == nil {
 			return nil
+		} else {
+			if try >= tries {
+				return err
+			}
+			time.Sleep(time.Duration(backoffDelay) * time.Second)
 		}
 	}
+}
+
+func executeBatch(db *DBConnection, commands []any) error {
+	for _, command := range commands {
+		log.Printf("[ERROR] Executing %s", command.(string))
+		_, err := db.Query(command.(string))
+
+		if err != nil {
+			log.Println("[ERROR] Error catched:", err)
+			if _, rollbackError := db.Query("ROLLBACK"); rollbackError != nil {
+				log.Println("[ERROR] Rollback raised an error:", rollbackError)
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 func shasumCommands(commands []any) string {
