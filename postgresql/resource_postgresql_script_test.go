@@ -14,7 +14,7 @@ func TestAccPostgresqlScript_basic(t *testing.T) {
 			"SELECT 1;"
 		]
 		tries = 2
-		timeout = 4
+		backoff_delay = 4
 	}
 	`
 
@@ -27,7 +27,7 @@ func TestAccPostgresqlScript_basic(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("postgresql_script.test", "commands.0", "SELECT 1;"),
 					resource.TestCheckResourceAttr("postgresql_script.test", "tries", "2"),
-					resource.TestCheckResourceAttr("postgresql_script.test", "timeout", "4"),
+					resource.TestCheckResourceAttr("postgresql_script.test", "backoff_delay", "4"),
 				),
 			},
 		},
@@ -43,7 +43,7 @@ func TestAccPostgresqlScript_multiple(t *testing.T) {
 			"SELECT 3;"
 		]
 		tries = 2
-		timeout = 4
+		backoff_delay = 4
 	}
 	`
 
@@ -58,7 +58,7 @@ func TestAccPostgresqlScript_multiple(t *testing.T) {
 					resource.TestCheckResourceAttr("postgresql_script.test", "commands.1", "SELECT 2;"),
 					resource.TestCheckResourceAttr("postgresql_script.test", "commands.2", "SELECT 3;"),
 					resource.TestCheckResourceAttr("postgresql_script.test", "tries", "2"),
-					resource.TestCheckResourceAttr("postgresql_script.test", "timeout", "4"),
+					resource.TestCheckResourceAttr("postgresql_script.test", "backoff_delay", "4"),
 				),
 			},
 		},
@@ -83,7 +83,7 @@ func TestAccPostgresqlScript_default(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("postgresql_script.test", "commands.0", "SELECT 1;"),
 					resource.TestCheckResourceAttr("postgresql_script.test", "tries", "1"),
-					resource.TestCheckResourceAttr("postgresql_script.test", "timeout", "1"),
+					resource.TestCheckResourceAttr("postgresql_script.test", "backoff_delay", "1"),
 				),
 			},
 		},
@@ -140,7 +140,7 @@ func TestAccPostgresqlScript_fail(t *testing.T) {
 			"SLC FROM nowhere;"
 		]
 		tries = 2
-		timeout = 2
+		backoff_delay = 2
 	}
 	`
 
@@ -165,7 +165,7 @@ func TestAccPostgresqlScript_failMultiple(t *testing.T) {
 			"COMMIT"
 		]
 		tries = 2
-		timeout = 2
+		backoff_delay = 2
 	}
 	`
 
