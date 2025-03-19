@@ -42,7 +42,7 @@ func resourcePostgreSQLScript() *schema.Resource {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Default:     1,
-				Description: "Number of seconds between two tries for a command",
+				Description: "Number of seconds between two tries of the batch of commands",
 			},
 			scriptShasumAttr: {
 				Type:        schema.TypeString,
