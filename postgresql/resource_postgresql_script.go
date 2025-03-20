@@ -106,8 +106,8 @@ func executeCommands(db *DBConnection, commands []string, tries int, backoffDela
 func executeBatch(db *DBConnection, commands []string) error {
 	for _, command := range commands {
 		log.Printf("[DEBUG] Executing %s", command)
-		_, err := db.Query(command)
-
+		_, err := db.Exec(command)
+		log.Printf("[DEBUG] Result %s: %v", command, err)
 		if err != nil {
 			log.Println("[DEBUG] Error catched:", err)
 			if _, rollbackError := db.Query("ROLLBACK"); rollbackError != nil {
