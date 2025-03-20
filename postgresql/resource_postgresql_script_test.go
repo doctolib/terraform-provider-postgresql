@@ -133,6 +133,29 @@ func TestAccPostgresqlScript_reapply(t *testing.T) {
 	})
 }
 
+func TestAccPostgresqlScript_invalid(t *testing.T) {
+	config := `
+	resource "postgresql_script" "invalid" {
+		commands = [
+			""
+		]
+		tries = 2
+		backoff_delay = 2
+	}
+	`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testAccPreCheck(t) },
+		Providers: testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:      config,
+				ExpectError: regexp.MustCompile("element <nil> is not a string"),
+			},
+		},
+	})
+}
+
 func TestAccPostgresqlScript_fail(t *testing.T) {
 	config := `
 	resource "postgresql_script" "invalid" {
