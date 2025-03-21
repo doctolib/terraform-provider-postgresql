@@ -1,12 +1,14 @@
 package postgresql
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"log"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -19,10 +21,10 @@ const (
 
 func resourcePostgreSQLScript() *schema.Resource {
 	return &schema.Resource{
-		Create: PGResourceFunc(resourcePostgreSQLScriptCreateOrUpdate),
-		Read:   PGResourceFunc(resourcePostgreSQLScriptRead),
-		Update: PGResourceFunc(resourcePostgreSQLScriptCreateOrUpdate),
-		Delete: PGResourceFunc(resourcePostgreSQLScriptDelete),
+		CreateContext: PGResourceContextFunc(resourcePostgreSQLScriptCreateOrUpdate),
+		Read:          PGResourceFunc(resourcePostgreSQLScriptRead),
+		UpdateContext: PGResourceContextFunc(resourcePostgreSQLScriptCreateOrUpdate),
+		Delete:        PGResourceFunc(resourcePostgreSQLScriptDelete),
 
 		Schema: map[string]*schema.Schema{
 			scriptCommandsAttr: {
@@ -54,19 +56,27 @@ func resourcePostgreSQLScript() *schema.Resource {
 	}
 }
 
-func resourcePostgreSQLScriptCreateOrUpdate(db *DBConnection, d *schema.ResourceData) error {
+func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnection, d *schema.ResourceData) diag.Diagnostics {
 	commands, err := toStringArray(d.Get(scriptCommandsAttr).([]any))
 	tries := d.Get(scriptTriesAttr).(int)
 	backoffDelay := d.Get(scriptBackoffDelayAttr).(int)
 
 	if err != nil {
-		return err
+		return diag.Diagnostics{diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Commands input is not valid",
+			Detail:   err.Error(),
+		}}
 	}
 
 	sum := shasumCommands(commands)
 
-	if err := executeCommands(db, commands, tries, backoffDelay); err != nil {
-		return err
+	if err := executeCommands(ctx, db, commands, tries, backoffDelay); err != nil {
+		return diag.Diagnostics{diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Commands execution failed",
+			Detail:   err.Error(),
+		}}
 	}
 
 	d.Set(scriptShasumAttr, sum)
@@ -89,9 +99,9 @@ func resourcePostgreSQLScriptDelete(db *DBConnection, d *schema.ResourceData) er
 	return nil
 }
 
-func executeCommands(db *DBConnection, commands []string, tries int, backoffDelay int) error {
+func executeCommands(ctx context.Context, db *DBConnection, commands []string, tries int, backoffDelay int) error {
 	for try := 1; ; try++ {
-		err := executeBatch(db, commands)
+		err := executeBatch(ctx, db, commands)
 		if err == nil {
 			return nil
 		} else {
@@ -103,10 +113,10 @@ func executeCommands(db *DBConnection, commands []string, tries int, backoffDela
 	}
 }
 
-func executeBatch(db *DBConnection, commands []string) error {
+func executeBatch(ctx context.Context, db *DBConnection, commands []string) error {
 	for _, command := range commands {
 		log.Printf("[DEBUG] Executing %s", command)
-		_, err := db.Exec(command)
+		_, err := db.ExecContext(ctx, command)
 		log.Printf("[DEBUG] Result %s: %v", command, err)
 		if err != nil {
 			log.Println("[DEBUG] Error catched:", err)

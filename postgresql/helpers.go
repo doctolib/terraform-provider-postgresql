@@ -1,12 +1,14 @@
 package postgresql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"regexp"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/lib/pq"
 )
@@ -34,6 +36,23 @@ func PGResourceExistsFunc(fn func(*DBConnection, *schema.ResourceData) (bool, er
 		}
 
 		return fn(db, d)
+	}
+}
+
+func PGResourceContextFunc(fn func(context.Context, *DBConnection, *schema.ResourceData) diag.Diagnostics) func(context.Context, *schema.ResourceData, interface{}) diag.Diagnostics {
+	return func(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+		client := meta.(*Client)
+
+		db, err := client.Connect()
+		if err != nil {
+			return diag.Diagnostics{diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Failled to connext",
+				Detail:   err.Error(),
+			}}
+		}
+
+		return fn(ctx, db, d)
 	}
 }
 
