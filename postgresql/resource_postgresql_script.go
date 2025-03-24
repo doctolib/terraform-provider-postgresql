@@ -16,6 +16,7 @@ const (
 	scriptCommandsAttr     = "commands"
 	scriptTriesAttr        = "tries"
 	scriptBackoffDelayAttr = "backoff_delay"
+	scriptTimeoutAttr      = "timeout"
 	scriptShasumAttr       = "shasum"
 )
 
@@ -47,6 +48,12 @@ func resourcePostgreSQLScript() *schema.Resource {
 				Default:     1,
 				Description: "Number of seconds between two tries of the batch of commands",
 			},
+			scriptTimeoutAttr: {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     5 * 60,
+				Description: "Number of seconds for a batch of command to timeout",
+			},
 			scriptShasumAttr: {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -60,6 +67,7 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 	commands, err := toStringArray(d.Get(scriptCommandsAttr).([]any))
 	tries := d.Get(scriptTriesAttr).(int)
 	backoffDelay := d.Get(scriptBackoffDelayAttr).(int)
+	timeout := d.Get(scriptTimeoutAttr).(int)
 
 	if err != nil {
 		return diag.Diagnostics{diag.Diagnostic{
@@ -71,7 +79,7 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 
 	sum := shasumCommands(commands)
 
-	if err := executeCommands(ctx, db, commands, tries, backoffDelay); err != nil {
+	if err := executeCommands(ctx, db, commands, tries, backoffDelay, timeout); err != nil {
 		return diag.Diagnostics{diag.Diagnostic{
 			Severity: diag.Error,
 			Summary:  "Commands execution failed",
@@ -99,9 +107,9 @@ func resourcePostgreSQLScriptDelete(db *DBConnection, d *schema.ResourceData) er
 	return nil
 }
 
-func executeCommands(ctx context.Context, db *DBConnection, commands []string, tries int, backoffDelay int) error {
+func executeCommands(ctx context.Context, db *DBConnection, commands []string, tries int, backoffDelay int, timeout int) error {
 	for try := 1; ; try++ {
-		err := executeBatch(ctx, db, commands)
+		err := executeBatch(ctx, db, commands, timeout)
 		if err == nil {
 			return nil
 		} else {
@@ -113,10 +121,12 @@ func executeCommands(ctx context.Context, db *DBConnection, commands []string, t
 	}
 }
 
-func executeBatch(ctx context.Context, db *DBConnection, commands []string) error {
+func executeBatch(ctx context.Context, db *DBConnection, commands []string, timeout int) error {
+	timeoutContext, timeoutCancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	defer timeoutCancel()
 	for _, command := range commands {
 		log.Printf("[DEBUG] Executing %s", command)
-		_, err := db.ExecContext(ctx, command)
+		_, err := db.ExecContext(timeoutContext, command)
 		log.Printf("[DEBUG] Result %s: %v", command, err)
 		if err != nil {
 			log.Println("[DEBUG] Error catched:", err)

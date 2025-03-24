@@ -203,3 +203,27 @@ func TestAccPostgresqlScript_failMultiple(t *testing.T) {
 		},
 	})
 }
+
+func TestAccPostgresqlScript_timeout(t *testing.T) {
+	config := `
+	resource "postgresql_script" "invalid" {
+		commands = [
+			"BEGIN",
+			"SELECT pg_sleep(2);",
+			"COMMIT"
+		]
+		timeout = 1
+	}
+	`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testAccPreCheck(t) },
+		Providers: testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:      config,
+				ExpectError: regexp.MustCompile("canceling statement"),
+			},
+		},
+	})
+}
