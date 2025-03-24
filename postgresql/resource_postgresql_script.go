@@ -1,12 +1,14 @@
 package postgresql
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"log"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -14,15 +16,16 @@ const (
 	scriptCommandsAttr     = "commands"
 	scriptTriesAttr        = "tries"
 	scriptBackoffDelayAttr = "backoff_delay"
+	scriptTimeoutAttr      = "timeout"
 	scriptShasumAttr       = "shasum"
 )
 
 func resourcePostgreSQLScript() *schema.Resource {
 	return &schema.Resource{
-		Create: PGResourceFunc(resourcePostgreSQLScriptCreateOrUpdate),
-		Read:   PGResourceFunc(resourcePostgreSQLScriptRead),
-		Update: PGResourceFunc(resourcePostgreSQLScriptCreateOrUpdate),
-		Delete: PGResourceFunc(resourcePostgreSQLScriptDelete),
+		CreateContext: PGResourceContextFunc(resourcePostgreSQLScriptCreateOrUpdate),
+		Read:          PGResourceFunc(resourcePostgreSQLScriptRead),
+		UpdateContext: PGResourceContextFunc(resourcePostgreSQLScriptCreateOrUpdate),
+		Delete:        PGResourceFunc(resourcePostgreSQLScriptDelete),
 
 		Schema: map[string]*schema.Schema{
 			scriptCommandsAttr: {
@@ -45,6 +48,12 @@ func resourcePostgreSQLScript() *schema.Resource {
 				Default:     1,
 				Description: "Number of seconds between two tries of the batch of commands",
 			},
+			scriptTimeoutAttr: {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     5 * 60,
+				Description: "Number of seconds for a batch of command to timeout",
+			},
 			scriptShasumAttr: {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -54,19 +63,28 @@ func resourcePostgreSQLScript() *schema.Resource {
 	}
 }
 
-func resourcePostgreSQLScriptCreateOrUpdate(db *DBConnection, d *schema.ResourceData) error {
+func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnection, d *schema.ResourceData) diag.Diagnostics {
 	commands, err := toStringArray(d.Get(scriptCommandsAttr).([]any))
 	tries := d.Get(scriptTriesAttr).(int)
 	backoffDelay := d.Get(scriptBackoffDelayAttr).(int)
+	timeout := d.Get(scriptTimeoutAttr).(int)
 
 	if err != nil {
-		return err
+		return diag.Diagnostics{diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Commands input is not valid",
+			Detail:   err.Error(),
+		}}
 	}
 
 	sum := shasumCommands(commands)
 
-	if err := executeCommands(db, commands, tries, backoffDelay); err != nil {
-		return err
+	if err := executeCommands(ctx, db, commands, tries, backoffDelay, timeout); err != nil {
+		return diag.Diagnostics{diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Commands execution failed",
+			Detail:   err.Error(),
+		}}
 	}
 
 	d.Set(scriptShasumAttr, sum)
@@ -89,9 +107,9 @@ func resourcePostgreSQLScriptDelete(db *DBConnection, d *schema.ResourceData) er
 	return nil
 }
 
-func executeCommands(db *DBConnection, commands []string, tries int, backoffDelay int) error {
+func executeCommands(ctx context.Context, db *DBConnection, commands []string, tries int, backoffDelay int, timeout int) error {
 	for try := 1; ; try++ {
-		err := executeBatch(db, commands)
+		err := executeBatch(ctx, db, commands, timeout)
 		if err == nil {
 			return nil
 		} else {
@@ -103,10 +121,12 @@ func executeCommands(db *DBConnection, commands []string, tries int, backoffDela
 	}
 }
 
-func executeBatch(db *DBConnection, commands []string) error {
+func executeBatch(ctx context.Context, db *DBConnection, commands []string, timeout int) error {
+	timeoutContext, timeoutCancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	defer timeoutCancel()
 	for _, command := range commands {
 		log.Printf("[DEBUG] Executing %s", command)
-		_, err := db.Exec(command)
+		_, err := db.ExecContext(timeoutContext, command)
 		log.Printf("[DEBUG] Result %s: %v", command, err)
 		if err != nil {
 			log.Println("[DEBUG] Error catched:", err)
