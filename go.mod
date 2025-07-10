@@ -1,6 +1,8 @@
 module github.com/terraform-providers/terraform-provider-postgresql
 
-go 1.20
+go 1.23.0
+
+toolchain go1.24.5
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0
@@ -15,13 +17,13 @@ require (
 	github.com/stretchr/testify v1.8.4
 	gocloud.dev v0.34.0
 	golang.org/x/net v0.13.0
-	golang.org/x/oauth2 v0.10.0
+	golang.org/x/oauth2 v0.30.0
 	google.golang.org/api v0.134.0
 )
 
 require (
 	cloud.google.com/go/compute v1.23.0 // indirect
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	contrib.go.opencensus.io/integrations/ocsql v0.1.7 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.0.0 // indirect
