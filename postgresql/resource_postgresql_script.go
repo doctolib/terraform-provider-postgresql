@@ -14,6 +14,7 @@ import (
 
 const (
 	scriptCommandsAttr     = "commands"
+	scriptDatabaseAttr     = "database"
 	scriptTriesAttr        = "tries"
 	scriptBackoffDelayAttr = "backoff_delay"
 	scriptTimeoutAttr      = "timeout"
@@ -28,6 +29,12 @@ func resourcePostgreSQLScript() *schema.Resource {
 		Delete:        PGResourceFunc(resourcePostgreSQLScriptDelete),
 
 		Schema: map[string]*schema.Schema{
+			scriptDatabaseAttr: {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "The database to execute commands in (defaults to provider's configured database)",
+			},
 			scriptCommandsAttr: {
 				Type:        schema.TypeList,
 				Required:    true,
@@ -77,9 +84,24 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 		}}
 	}
 
-	sum := shasumCommands(commands)
+	// Get the target database connection
+	database := getDatabase(d, db.client.databaseName)
 
-	if err := executeCommands(ctx, db, commands, tries, backoffDelay, timeout); err != nil {
+	targetDB := db
+	if database != "" && database != db.client.databaseName {
+		client := db.client.config.NewClient(database)
+		newDB, err := client.Connect()
+		if err != nil {
+			return diag.Diagnostics{diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Failed to connect to database",
+				Detail:   err.Error(),
+			}}
+		}
+		targetDB = newDB
+	}
+
+	if err := executeCommands(ctx, targetDB, commands, tries, backoffDelay, timeout); err != nil {
 		return diag.Diagnostics{diag.Diagnostic{
 			Severity: diag.Error,
 			Summary:  "Commands execution failed",
@@ -87,18 +109,35 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 		}}
 	}
 
-	d.Set(scriptShasumAttr, sum)
+	sum := shasumCommands(commands)
 	d.SetId(sum)
+
+	if err := resourcePostgreSQLScriptReadImpl(db, d); err != nil {
+		return diag.Diagnostics{diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Failed to read script state",
+			Detail:   err.Error(),
+		}}
+	}
+
 	return nil
 }
 
 func resourcePostgreSQLScriptRead(db *DBConnection, d *schema.ResourceData) error {
+	return resourcePostgreSQLScriptReadImpl(db, d)
+}
+
+func resourcePostgreSQLScriptReadImpl(db *DBConnection, d *schema.ResourceData) error {
 	commands, err := toStringArray(d.Get(scriptCommandsAttr).([]any))
 	if err != nil {
 		return err
 	}
 	newSum := shasumCommands(commands)
+
+	database := getDatabase(d, db.client.databaseName)
+
 	d.Set(scriptShasumAttr, newSum)
+	d.Set(scriptDatabaseAttr, database)
 
 	return nil
 }
