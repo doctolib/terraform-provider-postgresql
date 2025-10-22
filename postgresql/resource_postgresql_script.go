@@ -86,7 +86,7 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 	}
 
 	// Get the target database connection
-	database := getDatabaseForScript(d, db.client.databaseName)
+	database := getDatabaseAttrOrDefault(d, db.client.databaseName)
 
 	client := db.client.config.NewClient(database)
 	newDB, err := client.Connect()
@@ -97,9 +97,8 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 			Detail:   err.Error(),
 		}}
 	}
-	targetDB := newDB
 
-	if err := executeCommands(ctx, targetDB, commands, tries, backoffDelay, timeout); err != nil {
+	if err := executeCommands(ctx, newDB, commands, tries, backoffDelay, timeout); err != nil {
 		return diag.Diagnostics{diag.Diagnostic{
 			Severity: diag.Error,
 			Summary:  "Commands execution failed",
@@ -121,7 +120,7 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 	return nil
 }
 
-func getDatabaseForScript(d *schema.ResourceData, databaseName string) string {
+func getDatabaseAttrOrDefault(d *schema.ResourceData, databaseName string) string {
 	if v, ok := d.GetOk(scriptDatabaseAttr); ok {
 		databaseName = v.(string)
 	}
@@ -140,7 +139,7 @@ func resourcePostgreSQLScriptReadImpl(db *DBConnection, d *schema.ResourceData) 
 	}
 	newSum := shasumCommands(commands)
 
-	database := getDatabaseForScript(d, db.client.databaseName)
+	database := getDatabaseAttrOrDefault(d, db.client.databaseName)
 
 	d.Set(scriptShasumAttr, newSum)
 	d.Set(scriptDatabaseAttr, database)
