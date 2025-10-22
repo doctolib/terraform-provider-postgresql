@@ -87,19 +87,16 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 	// Get the target database connection
 	database := getDatabase(d, db.client.databaseName)
 
-	targetDB := db
-	if database != "" && database != db.client.databaseName {
-		client := db.client.config.NewClient(database)
-		newDB, err := client.Connect()
-		if err != nil {
-			return diag.Diagnostics{diag.Diagnostic{
-				Severity: diag.Error,
-				Summary:  "Failed to connect to database",
-				Detail:   err.Error(),
-			}}
-		}
-		targetDB = newDB
+	client := db.client.config.NewClient(database)
+	newDB, err := client.Connect()
+	if err != nil {
+		return diag.Diagnostics{diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Failed to connect to database",
+			Detail:   err.Error(),
+		}}
 	}
+	targetDB := newDB
 
 	if err := executeCommands(ctx, targetDB, commands, tries, backoffDelay, timeout); err != nil {
 		return diag.Diagnostics{diag.Diagnostic{
@@ -108,6 +105,8 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 			Detail:   err.Error(),
 		}}
 	}
+
+	defer targetDB.Close()
 
 	sum := shasumCommands(commands)
 	d.SetId(sum)
