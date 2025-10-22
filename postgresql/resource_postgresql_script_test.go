@@ -244,11 +244,21 @@ func TestAccPostgresqlScript_withDatabase(t *testing.T) {
 		]
 		depends_on = [postgresql_database.test_db]
 	}
+
+    resource "postgresql_script" "test_default" {
+        commands = [
+            "CREATE TABLE default_db_table (id INT);",
+            "INSERT INTO default_db_table VALUES (1);",
+            "INSERT INTO default_db_table VALUES (2);"
+        ]
+        depends_on = [postgresql_database.test_db]
+    }
 	`
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:  func() { testAccPreCheck(t) },
-		Providers: testAccProviders,
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckScriptTablesDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: config,
@@ -256,12 +266,43 @@ func TestAccPostgresqlScript_withDatabase(t *testing.T) {
 					resource.TestCheckResourceAttr("postgresql_script.test", "database", "test_script_db"),
 					resource.TestCheckResourceAttr("postgresql_script.test", "commands.0", "CREATE TABLE test_table (id INT);"),
 					resource.TestCheckResourceAttr("postgresql_script.test", "commands.1", "INSERT INTO test_table VALUES (1);"),
+					resource.TestCheckResourceAttr("postgresql_script.test_default", "database", "postgres"),
+					resource.TestCheckResourceAttr("postgresql_script.test_default", "commands.0", "CREATE TABLE default_db_table (id INT);"),
+					resource.TestCheckResourceAttr("postgresql_script.test_default", "commands.1", "INSERT INTO default_db_table VALUES (1);"),
+					resource.TestCheckResourceAttr("postgresql_script.test_default", "commands.2", "INSERT INTO default_db_table VALUES (2);"),
 					testAccCheckTableExistsInDatabase("test_script_db", "test_table"),
 					testAccCheckTableHasRecords("test_script_db", "test_table", 1),
+					testAccCheckTableExistsInDatabase("postgres", "default_db_table"),
+					testAccCheckTableHasRecords("postgres", "default_db_table", 2),
 				),
 			},
 		},
 	})
+}
+
+func testAccCheckScriptTablesDestroyed(s *terraform.State) error {
+	return testAccDropTables(map[string][]string{
+		"test_script_db": {"test_table"},
+		"postgres":       {"default_db_table"},
+	})
+}
+
+func testAccDropTables(tablesToDrop map[string][]string) error {
+	client := testAccProvider.Meta().(*Client)
+
+	for dbName, tables := range tablesToDrop {
+		dbClient := client.config.NewClient(dbName)
+		db, err := dbClient.Connect()
+		if err != nil {
+			continue // Skip if we can't connect to the database
+		}
+
+		for _, tableName := range tables {
+			_, _ = db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName))
+		}
+	}
+
+	return nil
 }
 
 func testAccCheckTableExistsInDatabase(dbName, tableName string) resource.TestCheckFunc {
