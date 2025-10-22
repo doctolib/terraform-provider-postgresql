@@ -85,7 +85,7 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 	}
 
 	// Get the target database connection
-	database := getDatabase(d, db.client.databaseName)
+	database := getDatabaseForScript(d, db.client.databaseName)
 
 	client := db.client.config.NewClient(database)
 	newDB, err := client.Connect()
@@ -122,6 +122,14 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 	return nil
 }
 
+func getDatabaseForScript(d *schema.ResourceData, databaseName string) string {
+	if v, ok := d.GetOk(scriptDatabaseAttr); ok {
+		databaseName = v.(string)
+	}
+
+	return databaseName
+}
+
 func resourcePostgreSQLScriptRead(db *DBConnection, d *schema.ResourceData) error {
 	return resourcePostgreSQLScriptReadImpl(db, d)
 }
@@ -133,7 +141,7 @@ func resourcePostgreSQLScriptReadImpl(db *DBConnection, d *schema.ResourceData) 
 	}
 	newSum := shasumCommands(commands)
 
-	database := getDatabase(d, db.client.databaseName)
+	database := getDatabaseForScript(d, db.client.databaseName)
 
 	d.Set(scriptShasumAttr, newSum)
 	d.Set(scriptDatabaseAttr, database)
