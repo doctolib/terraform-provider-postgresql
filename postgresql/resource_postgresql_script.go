@@ -107,8 +107,6 @@ func resourcePostgreSQLScriptCreateOrUpdate(ctx context.Context, db *DBConnectio
 		}}
 	}
 
-	defer targetDB.Close()
-
 	sum := shasumCommands(commands)
 	d.SetId(sum)
 
