@@ -33,7 +33,7 @@ func resourcePostgreSQLScript() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Computed:    true,
-				Default:     "postgres",
+				ForceNew:    true,
 				Description: "The database to execute commands in (defaults to provider's configured database)",
 			},
 			scriptCommandsAttr: {
