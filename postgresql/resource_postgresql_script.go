@@ -168,18 +168,27 @@ func executeCommands(ctx context.Context, db *DBConnection, commands []string, t
 func executeBatch(ctx context.Context, db *DBConnection, commands []string, timeout int) error {
 	timeoutContext, timeoutCancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer timeoutCancel()
-	for _, command := range commands {
-		log.Printf("[DEBUG] Executing %s", command)
-		_, err := db.ExecContext(timeoutContext, command)
-		log.Printf("[DEBUG] Result %s: %v", command, err)
-		if err != nil {
-			log.Println("[DEBUG] Error catched:", err)
-			if _, rollbackError := db.Query("ROLLBACK"); rollbackError != nil {
-				log.Println("[DEBUG] Rollback raised an error:", rollbackError)
-			}
-			return err
+
+	// Concatenate all commands into a single SQL statement to ensure they run on one connection
+	concatenatedSQL := ""
+	for i, command := range commands {
+		if i > 0 {
+			concatenatedSQL += "; "
 		}
+		concatenatedSQL += command
 	}
+
+	log.Printf("[DEBUG] Executing concatenated SQL: %s", concatenatedSQL)
+	_, err := db.ExecContext(timeoutContext, concatenatedSQL)
+	log.Printf("[DEBUG] Result: %v", err)
+	if err != nil {
+		log.Println("[DEBUG] Error catched:", err)
+		if _, rollbackError := db.Query("ROLLBACK"); rollbackError != nil {
+			log.Println("[DEBUG] Rollback raised an error:", rollbackError)
+		}
+		return err
+	}
+
 	return nil
 }
 
