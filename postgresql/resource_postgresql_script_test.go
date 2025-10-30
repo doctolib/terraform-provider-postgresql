@@ -352,3 +352,85 @@ func testAccCheckTableHasRecords(dbName, tableName string, expectedCount int) re
 		return nil
 	}
 }
+
+func TestAccPostgresqlScript_setLocalRoleWorks(t *testing.T) {
+	// This test demonstrates that SET LOCAL ROLE works across separate commands
+	// because they are concatenated into a single SQL statement to be executed on a single connection
+	config := `
+	resource "postgresql_role" "test_role" {
+		name = "test_owner_role"
+	}
+
+	resource "postgresql_script" "grant_role" {
+		commands = [
+			"GRANT test_owner_role TO CURRENT_USER",
+			"GRANT CREATE ON SCHEMA public TO test_owner_role"
+		]
+		depends_on = [postgresql_role.test_role]
+	}
+
+    resource "postgresql_script" "test_with_set_local_separate" {
+		commands = [
+			"BEGIN",
+			"SET LOCAL ROLE test_owner_role",
+			"CREATE TABLE test_set_locals (id INT)",
+			"COMMIT"
+		]
+		depends_on = [postgresql_script.grant_role]
+	}
+	`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckSetLocalRoleTablesDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckTableExistsInDatabase("postgres", "test_set_locals"),
+					// Both commands should now work with SET LOCAL ROLE since commands are concatenated
+					testAccCheckTableOwner("postgres", "test_set_locals", "test_owner_role"),
+				),
+			},
+		},
+	})
+}
+
+func testAccCheckTableOwner(dbName, tableName, expectedOwner string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		client := testAccProvider.Meta().(*Client)
+		dbClient := client.config.NewClient(dbName)
+		db, err := dbClient.Connect()
+		if err != nil {
+			return fmt.Errorf("Error connecting to database %s: %s", dbName, err)
+		}
+
+		var owner string
+		query := `SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = $1`
+		err = db.QueryRow(query, tableName).Scan(&owner)
+		if err != nil {
+			return fmt.Errorf("Error checking owner of table %s: %s", tableName, err)
+		}
+
+		if owner != expectedOwner {
+			return fmt.Errorf("Expected table %s to be owned by %s but got %s", tableName, expectedOwner, owner)
+		}
+
+		return nil
+	}
+}
+
+func testAccCheckSetLocalRoleTablesDestroyed(s *terraform.State) error {
+	client := testAccProvider.Meta().(*Client)
+	db, err := client.Connect()
+	if err != nil {
+		return nil // Skip if we can't connect
+	}
+
+	_, _ = db.Exec("DROP TABLE IF EXISTS test_set_local_separate")
+	_, _ = db.Exec("DROP TABLE IF EXISTS test_set_local_single")
+	_, _ = db.Exec("DROP ROLE IF EXISTS test_owner_role")
+
+	return nil
+}
