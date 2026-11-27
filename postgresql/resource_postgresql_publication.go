@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -423,8 +424,26 @@ func resourcePostgreSQLPublicationDelete(db *DBConnection, d *schema.ResourceDat
 		dropMode = "CASCADE"
 	}
 
-	sql := fmt.Sprintf("DROP PUBLICATION %s %s", pq.QuoteIdentifier(publicationName), dropMode)
-	if _, err := txn.Exec(sql); err != nil {
+	// Only the owner of a publication (or a member of the owning role) can drop it, and the
+	// owner may have changed outside of Terraform since the last refresh. Look up the live
+	// owner and make sure the connected user holds its privileges for the time of the drop
+	// (the way to get them depends on the PostgreSQL version, see withRolePrivileges).
+	var liveOwner string
+	ownerQuery := "SELECT r.rolname FROM pg_catalog.pg_publication p JOIN pg_catalog.pg_roles r ON p.pubowner = r.oid WHERE p.pubname = $1"
+	if err := txn.QueryRow(ownerQuery, publicationName).Scan(&liveOwner); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Already dropped outside of Terraform.
+			d.SetId("")
+			return nil
+		}
+		return fmt.Errorf("could not read the owner of publication %s: %w", publicationName, err)
+	}
+
+	dropSQL := fmt.Sprintf("DROP PUBLICATION %s %s", pq.QuoteIdentifier(publicationName), dropMode)
+	if err := withRolePrivileges(txn, []string{liveOwner}, func() error {
+		_, err := txn.Exec(dropSQL)
+		return err
+	}); err != nil {
 		return fmt.Errorf("could not execute sql: %w", err)
 	}
 
